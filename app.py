@@ -28,7 +28,8 @@ def load_settings():
     except ImportError:
         pass
     for name in ("QDRANT_URL", "QDRANT_API_KEY", "VIDEO_ID",
-                 "LYZR_API_KEY", "USE_LYZR_PARSER", "LYZR_AGENT_ID"):
+                 "LYZR_API_KEY", "USE_LYZR_PARSER", "LYZR_AGENT_ID",
+                 "USE_LYZR_SCOUT", "LYZR_SCOUT_AGENT_ID"):
         try:
             if name in st.secrets:
                 os.environ[name] = str(st.secrets[name])
@@ -127,6 +128,10 @@ else:
             st.caption(f"⚠️ No moments labeled *{parsed['action_filter']}* — "
                        "showing the closest semantic matches instead.")
 
+        # Scout Note panel: reserve the slot now, fill it after the cards
+        # render so the agent's latency never delays the results.
+        note_slot = st.container()
+
         for row_start in range(0, len(moments), 3):
             cols = st.columns(3)
             for col, m in zip(cols, moments[row_start: row_start + 3]):
@@ -138,3 +143,12 @@ else:
                     st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['t']}",
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)
+
+        from scout_note import scout_note
+        note = scout_note(query, moments)
+        if note:
+            with note_slot:
+                tag = " · by Lyzr agent" if note["source"] == "lyzr" else ""
+                with st.expander(f"📋 Scout Note{tag}", expanded=True):
+                    for b in note["bullets"]:
+                        st.markdown(f"- **{b['time']}** — {b['text']}")
