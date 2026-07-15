@@ -1,0 +1,7 @@
+google-genai
+groq
+fastembed
+qdrant-client
+streamlit
+pillow
+python-dotenv

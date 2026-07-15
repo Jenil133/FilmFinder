@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FilmFinder — raw media never gets committed (thumbs/ and captions_*.jsonl DO get committed later)
+frames/
+*.mp4
+*.mkv
+*.webm
+run.log
+.streamlit/secrets.toml
