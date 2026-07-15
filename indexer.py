@@ -74,6 +74,10 @@ def main():
             vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
         )
         print(f"Created collection {args.collection} ({EMBED_DIM}-dim cosine)")
+    # Qdrant Cloud rejects filters on unindexed payload fields — search.py
+    # filters on both of these.
+    client.create_payload_index(args.collection, field_name="action", field_schema="keyword")
+    client.create_payload_index(args.collection, field_name="t", field_schema="integer")
 
     print(f"Embedding with {EMBED_MODEL} (local, downloads model on first run)...")
     model = TextEmbedding(model_name=EMBED_MODEL)
