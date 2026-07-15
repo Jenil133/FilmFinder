@@ -115,7 +115,11 @@ class GroqCaptioner:
             sys.exit("GROQ_API_KEY missing — fill .env first (see .env.example)")
         self.client = Groq(api_key=api_key)
         # llama-4-scout is shut down on Groq as of 2026-07-17; qwen3.6-27b is
-        # the vision-capable replacement (same 5-images-per-request limit).
+        # the vision-capable replacement. Caps: 3 images/request (use
+        # --batch-size 3) and 8000 tokens/min on the free tier — a 768px
+        # 3-image batch estimates ~9k tokens, so bulk runs crawl. Groq is a
+        # gap-filler, not a bulk path; for volume wait for the Gemini daily
+        # quota reset (midnight PT) instead.
         self.model = os.environ.get("GROQ_MODEL", "qwen/qwen3.6-27b")
         self.tokens_in = 0
         self.tokens_out = 0
@@ -236,7 +240,7 @@ def main():
     ap.add_argument("--frames-dir", required=True)
     ap.add_argument("--out", required=True, help="JSONL output (append mode, resumable)")
     ap.add_argument("--batch-size", type=int, default=5,
-                    help="Frames per request (Groq vision caps at 5 images)")
+                    help="Frames per request (Gemini: 5 is proven; Groq qwen caps at 3)")
     ap.add_argument("--provider", choices=["gemini", "groq"], default="gemini")
     ap.add_argument("--sleep", type=float, default=6.5,
                     help="Seconds between requests (Gemini free tier is ~10 req/min)")
@@ -245,6 +249,10 @@ def main():
     args = ap.parse_args()
     if args.limit < 0:
         ap.error("--limit must be >= 0")
+    if args.provider == "groq" and args.batch_size > 3:
+        print(f"WARNING: Groq qwen vision rejects >3 images/request — "
+              f"clamping batch size {args.batch_size} -> 3", file=sys.stderr)
+        args.batch_size = 3
 
     load_dotenv()
 
