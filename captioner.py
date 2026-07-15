@@ -25,7 +25,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-PROMPT_VERSION = "v0-killtest"
+# Frozen 2026-07-15 after the 5/5 kill-test pass — the full-match overnight run
+# uses this exact prompt. No edits after the run starts (Phase 2 rule).
+PROMPT_VERSION = "v1-final"
 
 ACTIONS = [
     "corner", "free_kick", "penalty", "throw_in", "goal_kick", "shot",
@@ -76,9 +78,10 @@ class GeminiCaptioner:
         if not api_key:
             sys.exit("GOOGLE_API_KEY missing — fill .env first (see .env.example)")
         self.client = genai.Client(api_key=api_key)
-        # gemini-2.5-flash is rejected for API keys created after ~mid-2026
-        # ("no longer available to new users"); 3.5-flash is the current flash.
-        self.model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        # gemini-2.5-flash is rejected for new API keys; gemini-3.5-flash free
+        # tier is only 20 req/day. 3.1-flash-lite is the proven captioner
+        # (38 frames/min, 5/5 kill-test) — see KILLTEST.md.
+        self.model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
         self.tokens_in = 0
         self.tokens_out = 0
 
