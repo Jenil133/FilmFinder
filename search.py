@@ -66,47 +66,99 @@ ACTION_SYNONYMS = {
 }
 
 
+# Bare "corner"/"goal" are hijack-prone: "shot into the bottom corner" is a
+# shot, "goal line clearance" is a goal PREVENTED. Guards below skip the bare
+# synonym when the positional/compound phrase is present.
+_POSITIONAL_CORNER = re.compile(r"\b(?:bottom|top|far|near|upper|lower|back)\s+corner\b")
+_GOAL_LINE = re.compile(r"\bgoal[\s-]+line\b")
+
+
 def parse_query(query: str, video_config: dict = VIDEO_CONFIG) -> dict:
     """Raw query -> {action_filter, time_range, semantic_query}."""
     q = query.strip()
-    q_lower = " ".join(q.lower().split())
-    semantic = q
-
-    # --- time-range detection (phrase is stripped from the semantic query) ---
-    time_range = None
+    semantic = " ".join(q.lower().split())
     dur = video_config["duration_seconds"]
+    kickoff = video_config["kickoff_t"]
+    fh_end = video_config["first_half_end_t"]
+    sh_start = video_config["second_half_start_t"]
 
-    m = re.search(r"\b(?:in\s+the\s+|during\s+the\s+)?first\s+half\b", q_lower)
+    def strip_match(text, m):
+        return (text[: m.start()] + " " + text[m.end():]).strip()
+
+    # --- time-range detection ------------------------------------------------
+    # Halves first, then relative windows ANCHORED to the detected half, so
+    # "last 10 minutes of the first half" means (fh_end - 600, fh_end), not
+    # the whole first half. Every recognized phrase is stripped from the
+    # semantic text.
+    stripped_time = False
+    half = None
+    m = re.search(r"\b(?:in\s+the\s+|during\s+the\s+|of\s+the\s+)?first[\s-]+half\b", semantic)
     if m:
-        time_range = (None, video_config["first_half_end_t"])
-        semantic = (q_lower[: m.start()] + " " + q_lower[m.end():]).strip()
-    if time_range is None:
-        m = re.search(r"\b(?:in\s+the\s+|during\s+the\s+)?second\s+half\b", q_lower)
+        half, semantic, stripped_time = "first", strip_match(semantic, m), True
+    else:
+        m = re.search(r"\b(?:in\s+the\s+|during\s+the\s+|of\s+the\s+)?second[\s-]+half\b", semantic)
         if m:
-            time_range = (video_config["second_half_start_t"], None)
-            semantic = (q_lower[: m.start()] + " " + q_lower[m.end():]).strip()
-    if time_range is None:
-        m = re.search(r"\b(?:in\s+the\s+)?(?:last|final)\s+(\d+)\s+min(?:ute)?s?\b", q_lower)
-        if m:
-            time_range = (max(0, dur - 60 * int(m.group(1))), None)
-            semantic = (q_lower[: m.start()] + " " + q_lower[m.end():]).strip()
-    if time_range is None:
-        m = re.search(r"\b(?:in\s+the\s+)?first\s+(\d+)\s+min(?:ute)?s?\b", q_lower)
-        if m:
-            time_range = (None, video_config["kickoff_t"] + 60 * int(m.group(1)))
-            semantic = (q_lower[: m.start()] + " " + q_lower[m.end():]).strip()
+            half, semantic, stripped_time = "second", strip_match(semantic, m), True
 
-    # --- action detection: longest matching synonym wins ---
+    if half == "first":
+        bounds = [kickoff, fh_end]  # gte excludes pre-kickoff intro footage
+    elif half == "second":
+        bounds = [sh_start, None]
+    else:
+        bounds = None
+
+    m = re.search(r"\b(?:in\s+the\s+)?(?:last|final)\s+(\d+)\s+min(?:ute)?s?\b", semantic)
+    if m:
+        n = int(m.group(1))
+        if half == "first":
+            bounds = [max(kickoff, fh_end - 60 * n), fh_end]
+        else:  # second half or whole video: both end at the video's end
+            bounds = [max(0, dur - 60 * n), None]
+        semantic, stripped_time = strip_match(semantic, m), True
+    else:
+        m = re.search(r"\b(?:in\s+the\s+)?first\s+(\d+)\s+min(?:ute)?s?\b", semantic)
+        if m:
+            n = int(m.group(1))
+            if half == "second":
+                bounds = [sh_start, sh_start + 60 * n]
+            else:
+                lte = kickoff + 60 * n
+                if lte > fh_end:  # window spills past halftime: skip the break
+                    lte = sh_start + 60 * (n - 45)
+                bounds = [kickoff, lte]
+            semantic, stripped_time = strip_match(semantic, m), True
+
+    time_range = tuple(bounds) if bounds else None
+
+    # --- action detection: longest matching synonym wins ---------------------
     action = None
-    sem_lower = " ".join(semantic.lower().split())
+    sem_lower = " ".join(semantic.split())
     for phrase in sorted(ACTION_SYNONYMS, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(phrase)}\b", sem_lower):
-            action = ACTION_SYNONYMS[phrase]
-            break
+        if not re.search(rf"\b{re.escape(phrase)}\b", sem_lower):
+            continue
+        target = ACTION_SYNONYMS[phrase]
+        if target == "corner" and phrase in ("corner", "corners") \
+                and _POSITIONAL_CORNER.search(sem_lower):
+            continue  # "bottom corner" is a location, not a corner kick
+        if target == "goal" and _GOAL_LINE.search(sem_lower):
+            continue  # "goal line clearance" is not a goal
+        action = target
+        break
 
-    semantic = " ".join(semantic.split()) or q
+    # Pure time-phrase queries ("second half") must NOT reinstate the stripped
+    # phrase as the semantic text — rank by a neutral query instead (search()
+    # handles the empty string). Only fall back to the original when nothing
+    # was recognized at all.
+    cleaned = " ".join(semantic.split())
+    if cleaned:
+        semantic_query = cleaned
+    elif stripped_time or action:
+        semantic_query = ""
+    else:
+        semantic_query = " ".join(q.lower().split())
+
     return {"action_filter": action, "time_range": time_range,
-            "semantic_query": semantic}
+            "semantic_query": semantic_query}
 
 
 # --------------------------------------------------------------------------- #
@@ -132,7 +184,10 @@ def get_client():
         load_dotenv()
         url, key = os.environ.get("QDRANT_URL"), os.environ.get("QDRANT_API_KEY")
         if not url or not key:
-            sys.exit("QDRANT_URL / QDRANT_API_KEY missing — fill .env (see .env.example)")
+            # RuntimeError (not sys.exit): Streamlit renders exceptions but a
+            # SystemExit silently kills the script thread and hangs the page.
+            raise RuntimeError("QDRANT_URL / QDRANT_API_KEY missing — fill .env "
+                               "or the Streamlit secrets dashboard")
         _client = QdrantClient(url=url, api_key=key, timeout=30)
     return _client
 
@@ -158,7 +213,10 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
     retry on semantics alone so the long-tail path still carries the query.
     """
     parsed = parse_query(query)
-    vec = list(get_embedder().query_embed(parsed["semantic_query"]))[0].tolist()
+    # Empty semantic text (pure time/action-phrase query) ranks by a neutral
+    # probe so ordering isn't driven by similarity to e.g. "second half".
+    embed_text = parsed["semantic_query"] or "soccer match action"
+    vec = list(get_embedder().query_embed(embed_text))[0].tolist()
     client = get_client()
 
     qfilter = build_filter(parsed, include_action=True)
@@ -169,6 +227,9 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
                                limit=top_k, query_filter=qfilter,
                                with_payload=True).points
     if not hits and parsed["action_filter"]:
+        # No frames carry this action label (VLM gap, or it never happened).
+        # Degrade to semantics-only — but SAY so, so the UI can disclose it.
+        parsed = {**parsed, "action_filter_dropped": True}
         qfilter = build_filter(parsed, include_action=False)
         if debug:
             print(f"  [debug] action filter empty -> semantic fallback, filter: {qfilter}")
@@ -207,6 +268,7 @@ def cluster_moments(hits, gap_seconds: int = 10, max_moments: int = 6):
             "end_t": cluster[-1].payload["t"],
             "score": rep.score,
             "frame": rep.payload["frame"],
+            "video": rep.payload.get("video", ""),
             "action": rep.payload["action"],
             "description": rep.payload["description"],
             "n_frames": len(cluster),

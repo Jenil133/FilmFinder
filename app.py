@@ -12,7 +12,7 @@ import streamlit as st
 
 # ---- Thursday's one-line swap lives here -----------------------------------
 COLLECTION = "filmfinder_dev"
-THUMBS_DIR = Path("thumbs/dev")
+THUMBS_DIR = Path(__file__).parent / "thumbs/dev"  # cwd-independent
 # -----------------------------------------------------------------------------
 
 CHIPS = ["corner kick", "goalkeeper save", "shot on goal",
@@ -96,11 +96,14 @@ for i, chip in enumerate(CHIPS):
     chip_cols[i % 3].button(chip, key=f"chip_{i}", on_click=set_query,
                             args=(chip,), use_container_width=True)
 
+# Warm the engine at startup (not on first search): on Streamlit Cloud the
+# fastembed model download costs 10-40s — pay it while the page is being read.
+find_moments, mmss = engine()
+
 # ---- results ------------------------------------------------------------------
 if not query:
     st.info("Search anything you'd scrub the timeline for — or tap a suggestion above.")
 else:
-    find_moments, mmss = engine()
     with st.spinner(f'Searching for "{query}"...'):
         parsed, moments, error = run_search(find_moments, query)
 
@@ -119,6 +122,9 @@ else:
                            f"{mmss(lte) if lte else 'end'}")
         st.caption(f"{len(moments)} moment{'s' if len(moments) != 1 else ''}"
                    + (f" · filters — {' · '.join(filters)}" if filters else ""))
+        if parsed.get("action_filter_dropped"):
+            st.caption(f"⚠️ No moments labeled *{parsed['action_filter']}* — "
+                       "showing the closest semantic matches instead.")
 
         for row_start in range(0, len(moments), 3):
             cols = st.columns(3)
@@ -128,6 +134,6 @@ else:
                     if thumb.exists():
                         st.image(str(thumb), use_container_width=True)
                     st.markdown(f"**{mmss(m['t'])}**  \n{m['description']}")
-                    st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['frame']}",
+                    st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['t']}",
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)

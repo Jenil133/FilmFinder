@@ -1,7 +1,7 @@
 google-genai
 groq
 fastembed
-qdrant-client
-streamlit
+qdrant-client>=1.10
+streamlit>=1.56
 pillow
 python-dotenv
