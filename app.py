@@ -27,7 +27,8 @@ def load_settings():
         load_dotenv()
     except ImportError:
         pass
-    for name in ("QDRANT_URL", "QDRANT_API_KEY", "VIDEO_ID"):
+    for name in ("QDRANT_URL", "QDRANT_API_KEY", "VIDEO_ID",
+                 "LYZR_API_KEY", "USE_LYZR_PARSER", "LYZR_AGENT_ID"):
         try:
             if name in st.secrets:
                 os.environ[name] = str(st.secrets[name])

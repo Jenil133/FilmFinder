@@ -158,7 +158,23 @@ def parse_query(query: str, video_config: dict = VIDEO_CONFIG) -> dict:
         semantic_query = " ".join(q.lower().split())
 
     return {"action_filter": action, "time_range": time_range,
-            "semantic_query": semantic_query}
+            "semantic_query": semantic_query, "parser": "keyword"}
+
+
+def parse_query_flagged(query: str) -> dict:
+    """Lyzr agent parser when USE_LYZR_PARSER is on; keyword parser otherwise.
+
+    Any Lyzr failure (missing key, timeout, malformed output) falls back
+    silently — the flag can never make the product worse than the baseline.
+    """
+    load_dotenv()  # CLI path reaches here before get_client()'s load
+    if os.environ.get("USE_LYZR_PARSER", "").lower() in ("1", "true", "yes"):
+        try:
+            from lyzr_parser import parse_query_lyzr
+            return parse_query_lyzr(query)
+        except Exception:
+            pass
+    return parse_query(query)
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +228,7 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
     detected. If a hard action filter yields nothing (VLM labeling gaps), we
     retry on semantics alone so the long-tail path still carries the query.
     """
-    parsed = parse_query(query)
+    parsed = parse_query_flagged(query)
     # Empty semantic text (pure time/action-phrase query) ranks by a neutral
     # probe so ordering isn't driven by similarity to e.g. "second half".
     embed_text = parsed["semantic_query"] or "soccer match action"
