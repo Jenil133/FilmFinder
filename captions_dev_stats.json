@@ -1,0 +1,12 @@
+{
+  "run_frames": 295,
+  "elapsed_min": 7.76,
+  "frames_per_min": 38.01,
+  "tokens_in": 351876,
+  "tokens_out": 21785,
+  "est_cost_usd": 0.0,
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-lite",
+  "prompt_version": "v0-killtest",
+  "failed_batches": 0
+}
