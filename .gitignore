@@ -224,3 +224,4 @@ frames/
 *.webm
 run.log
 .streamlit/secrets.toml
+.DS_Store
