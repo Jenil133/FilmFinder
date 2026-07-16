@@ -36,7 +36,11 @@ def record(success: bool) -> None:
     global _failures, _disabled_until, _tripped
     if success:
         _failures = 0
-        _tripped = False
+        # An in-flight call finishing DURING the cooldown must not erase the
+        # half-open memory — only a success after the cooldown (the probe, or
+        # a normal closed-state call) proves the API is healthy again.
+        if time.monotonic() >= _disabled_until:
+            _tripped = False
     else:
         _failures += 1
         if _tripped or _failures >= FAILURE_THRESHOLD:

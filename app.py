@@ -465,7 +465,9 @@ else:
                 tm = parsed.get("timings", {})
                 xcols = st.columns(3)
                 xcols[0].metric("parse", f"{tm.get('parse_ms', 0):.0f} ms",
-                                help=f"parser: {parsed.get('parser', '?')}")
+                                help=f"parser: {parsed.get('parser', '?')} — "
+                                     "measured on this query's first run "
+                                     "(results cache after)")
                 xcols[1].metric("embed", f"{tm.get('embed_ms', 0):.0f} ms",
                                 help="bge-small-en-v1.5, 384-dim, local")
                 xcols[2].metric("Qdrant", f"{tm.get('qdrant_ms', 0):.0f} ms",
@@ -509,7 +511,10 @@ else:
                         bcols[0].button("✨ Similar", key=f"sim_{m['t']}",
                                         on_click=show_similar, args=(m, query),
                                         use_container_width=True)
-                    bcols[1].button("➕ Save", key=f"save_{m['t']}",
+                    saved = any(c["t"] == int(m["t"]) for c in
+                                st.session_state.get("clipboard", []))
+                    bcols[1].button("✓ Saved" if saved else "➕ Save",
+                                    key=f"save_{m['t']}", disabled=saved,
                                     on_click=add_clip, args=(m, query),
                                     use_container_width=True)
 

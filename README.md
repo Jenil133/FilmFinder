@@ -137,6 +137,10 @@ harness ([qa_eval.py](qa_eval.py) → [eval_results.md](eval_results.md)):
 - **Recall is caption-bound.** If the VLM didn't write it, search can't find
   it. Frame sampling at 2s can miss ball-strike instants; multi-frame events
   (counterattacks) exceed a per-frame captioner's vocabulary.
+- **The keyword parser reads literally.** Negation ("no goals") and
+  contradictory compounds ("second half of the first half") parse to their
+  dominant keywords; the Lyzr parser path handles more of these, but neither
+  is a full language model of soccer talk.
 - **Playback needs the YouTube embed** to stay public and embeddable.
 
 ## Roadmap

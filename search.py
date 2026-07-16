@@ -112,22 +112,28 @@ def parse_query(query: str, video_config: dict = VIDEO_CONFIG) -> dict:
     m = re.search(r"\b(?:in\s+the\s+)?(?:last|final)\s+(\d+)\s+min(?:ute)?s?\b", semantic)
     if m:
         n = int(m.group(1))
-        if half == "first":
-            bounds = [max(kickoff, fh_end - 60 * n), fh_end]
-        else:  # second half or whole video: both end at the video's end
-            bounds = [max(0, dur - 60 * n), None]
+        if n > 0:  # "last 0 minutes" is noise: strip the phrase, keep bounds
+            if half == "first":
+                bounds = [max(kickoff, fh_end - 60 * n), fh_end]
+            elif half == "second":
+                # clamp: "last 60 min of the second half" must never reach
+                # back across the halftime break into first-half footage
+                bounds = [max(sh_start, dur - 60 * n), None]
+            else:
+                bounds = [max(0, dur - 60 * n), None]
         semantic, stripped_time = strip_match(semantic, m), True
     else:
         m = re.search(r"\b(?:in\s+the\s+)?first\s+(\d+)\s+min(?:ute)?s?\b", semantic)
         if m:
             n = int(m.group(1))
-            if half == "second":
-                bounds = [sh_start, sh_start + 60 * n]
-            else:
-                lte = kickoff + 60 * n
-                if lte > fh_end:  # window spills past halftime: skip the break
-                    lte = sh_start + 60 * (n - 45)
-                bounds = [kickoff, lte]
+            if n > 0:
+                if half == "second":
+                    bounds = [sh_start, min(sh_start + 60 * n, dur)]
+                else:
+                    lte = kickoff + 60 * n
+                    if lte > fh_end:  # window spills past halftime: skip the break
+                        lte = sh_start + 60 * (n - 45)
+                    bounds = [kickoff, min(lte, dur)]
             semantic, stripped_time = strip_match(semantic, m), True
 
     time_range = tuple(bounds) if bounds else None

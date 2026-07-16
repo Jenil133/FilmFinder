@@ -5,3 +5,9 @@ qdrant-client>=1.10
 streamlit>=1.56
 pillow
 python-dotenv
+# imported directly (scout_note/lyzr_parser/app) — today satisfied only
+# transitively via streamlit; pinned explicitly so a streamlit dep change
+# can't break a fresh install
+requests
+altair
+pandas

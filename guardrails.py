@@ -60,8 +60,17 @@ def ground_bullets(data: dict, valid_ts: set) -> list:
     """Validate agent-written Scout Note bullets against the retrieved set.
 
     Returns [{t, text}, ...] or raises ValueError — callers treat any raise
-    as "discard the note", so nothing ungrounded can render.
+    as "discard the note", so nothing ungrounded can render. Malformed shapes
+    (missing keys, wrong types) surface as ValueError too, keeping the
+    documented contract even for future callers that catch narrowly.
     """
+    try:
+        return _ground_bullets(data, valid_ts)
+    except (KeyError, TypeError, AttributeError) as e:
+        raise ValueError(f"malformed scout output: {type(e).__name__}: {e}")
+
+
+def _ground_bullets(data: dict, valid_ts: set) -> list:
     bullets = data["bullets"]
     if not isinstance(bullets, list) or not 1 <= len(bullets) <= MAX_BULLETS:
         raise ValueError(f"bad bullet count: {bullets!r}")
