@@ -130,6 +130,34 @@ def cached_timeline(collection: str):
     return timeline_points(collection)
 
 
+def add_clip(m: dict, query: str):
+    """Save a moment to the session clip board (deduped by timestamp)."""
+    board = st.session_state.setdefault("clipboard", [])
+    if not any(c["t"] == int(m["t"]) for c in board):
+        board.append({"t": int(m["t"]), "action": m["action"],
+                      "description": m["description"], "query": query})
+        board.sort(key=lambda c: c["t"])
+
+
+def remove_clip(t: int):
+    st.session_state.clipboard = [c for c in st.session_state.get("clipboard", [])
+                                  if c["t"] != t]
+
+
+def clipboard_markdown(clips: list, video_id: str) -> str:
+    """Session plan a coach can paste into the team chat: every line is a
+    working YouTube deep link straight to the moment."""
+    lines = ["# FilmFinder session plan", ""]
+    for c in clips:
+        ts = mmss(c["t"])
+        link = (f"[{ts}](https://youtu.be/{video_id}?t={c['t']})"
+                if video_id else f"**{ts}**")
+        action = c["action"].replace("_", " ")
+        lines.append(f"- {link} — {action}: {c['description']} "
+                     f"_(found via “{c['query']}”)_")
+    return "\n".join(lines) + "\n"
+
+
 def pulse_seek():
     """Chart-click callback. Runs BEFORE the script rerun, so the player
     iframe (rendered above the chart) picks up the new seek this same run."""
@@ -245,6 +273,25 @@ st.button("🎲 Surprise me", key="surprise", on_click=surprise_me,
 # fastembed model download costs 10-40s — pay it while the page is being read.
 _, mmss = engine()  # searches go through cached_search; engine() pre-warms models
 
+# ---- clip board (sidebar) ------------------------------------------------------
+if os.environ.get("ENABLE_CLIPBOARD", "1").lower() in ("1", "true", "yes"):
+    clips = st.session_state.get("clipboard", [])
+    with st.sidebar:
+        st.subheader(f"📎 Clip board ({len(clips)})")
+        if not clips:
+            st.caption("Save moments from the results, then export a session "
+                       "plan with timestamped video links for your team.")
+        for c in clips:
+            row = st.columns([5, 1])
+            row[0].markdown(f"**{mmss(c['t'])}** · {c['action'].replace('_', ' ')}")
+            row[1].button("✕", key=f"rm_{c['t']}", on_click=remove_clip,
+                          args=(c["t"],))
+        if clips:
+            st.download_button("⬇️ Export session plan (.md)",
+                               clipboard_markdown(clips, video_id),
+                               file_name="session_plan.md",
+                               mime="text/markdown", use_container_width=True)
+
 # ---- results ------------------------------------------------------------------
 if not query:
     st.info("Search anything you'd scrub the timeline for — or tap a suggestion above.")
@@ -296,6 +343,9 @@ else:
                         st.button("✨ More like this", key=f"sim_{m['t']}",
                                   on_click=show_similar, args=(m, query),
                                   use_container_width=True)
+                    st.button("➕ Save clip", key=f"save_{m['t']}",
+                              on_click=add_clip, args=(m, query),
+                              use_container_width=True)
 
         # "More like this" row — Qdrant recommend-by-point on the clicked
         # moment's stored vector. Only rendered for the query it came from.
