@@ -12,6 +12,7 @@ Usage (sanity checks / QA):
 """
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -161,19 +162,34 @@ def parse_query(query: str, video_config: dict = VIDEO_CONFIG) -> dict:
             "semantic_query": semantic_query, "parser": "keyword"}
 
 
+@functools.lru_cache(maxsize=128)
+def _lyzr_parse_cached(query: str) -> dict:
+    """Successful Lyzr parses are cached per query: Streamlit reruns the whole
+    script on every widget click, and without this each click re-bought the
+    same parse with a fresh Lyzr credit. lru_cache skips failures, so errors
+    are retried, not remembered."""
+    from lyzr_parser import parse_query_lyzr
+    return parse_query_lyzr(query)
+
+
 def parse_query_flagged(query: str) -> dict:
     """Lyzr agent parser when USE_LYZR_PARSER is on; keyword parser otherwise.
 
     Any Lyzr failure (missing key, timeout, malformed output) falls back
     silently — the flag can never make the product worse than the baseline.
+    The shared circuit breaker (lyzr_guard) turns a dead Lyzr API from a
+    6s-per-search timeout tax into one skipped call.
     """
     load_dotenv()  # CLI path reaches here before get_client()'s load
     if os.environ.get("USE_LYZR_PARSER", "").lower() in ("1", "true", "yes"):
-        try:
-            from lyzr_parser import parse_query_lyzr
-            return parse_query_lyzr(query)
-        except Exception:
-            pass
+        import lyzr_guard
+        if lyzr_guard.allowed():
+            try:
+                parsed = _lyzr_parse_cached(query)
+                lyzr_guard.record(True)
+                return dict(parsed)  # shallow copy: callers add keys
+            except Exception:
+                lyzr_guard.record(False)
     return parse_query(query)
 
 

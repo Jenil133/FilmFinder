@@ -40,9 +40,17 @@ def scout_note(query: str, moments: list) -> dict | None:
         return None
     if os.environ.get("USE_LYZR_SCOUT", "").lower() not in ("1", "true", "yes"):
         return None
+    import lyzr_guard
+    if not lyzr_guard.allowed():
+        return _local_note(moments)  # breaker open: skip the 8s timeout tax
     try:
-        return _lyzr_note(query, moments)
+        note = _lyzr_note(query, moments)
+        lyzr_guard.record(True)
+        return note
     except Exception:
+        # Counts grounding rejections too: an agent that keeps hallucinating
+        # timestamps should stop burning credits just like a dead API.
+        lyzr_guard.record(False)
         return _local_note(moments)
 
 

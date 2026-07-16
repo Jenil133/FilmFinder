@@ -59,9 +59,25 @@ def engine():
     return find_moments, mmss
 
 
-def run_search(find_moments, query: str):
+# Streamlit reruns this whole script on EVERY widget interaction (jump
+# clicks, chips, toggles). Without these caches each rerun re-bought the same
+# search — including both Lyzr agent calls — from a ~20-credit monthly pool.
+# Only successful results are cached; errors stay retryable.
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_search(query: str, collection: str):
+    from search import find_moments
+    return find_moments(query, collection=collection)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_note(query: str, moments: list):
+    from scout_note import scout_note
+    return scout_note(query, moments)
+
+
+def run_search(query: str):
     try:
-        parsed, moments = find_moments(query, collection=COLLECTION)
+        parsed, moments = cached_search(query, COLLECTION)
         return parsed, moments, None
     except Exception as e:
         return None, [], f"Search hiccup ({type(e).__name__}) — try again in a moment."
@@ -121,14 +137,14 @@ st.button("🎲 Surprise me", key="surprise", on_click=surprise_me,
 
 # Warm the engine at startup (not on first search): on Streamlit Cloud the
 # fastembed model download costs 10-40s — pay it while the page is being read.
-find_moments, mmss = engine()
+_, mmss = engine()  # searches go through cached_search; engine() pre-warms models
 
 # ---- results ------------------------------------------------------------------
 if not query:
     st.info("Search anything you'd scrub the timeline for — or tap a suggestion above.")
 else:
     with st.spinner(f'Searching for "{query}"...'):
-        parsed, moments, error = run_search(find_moments, query)
+        parsed, moments, error = run_search(query)
 
     if error:
         st.error(error)
@@ -168,8 +184,7 @@ else:
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)
 
-        from scout_note import scout_note
-        note = scout_note(query, moments)
+        note = cached_note(query, moments)
         if note:
             with note_slot:
                 tag = " · by Lyzr agent" if note["source"] == "lyzr" else ""
