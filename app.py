@@ -331,7 +331,7 @@ with hero_l:
             import streamlit.components.v1 as components
             components.html(f"""<script>
 (function() {{
-  var t = {target}, tries = 0;
+  var t = {target}, tries = 0, seeked = false;
   var timer = setInterval(function() {{
     tries++;
     var w = null;
@@ -341,14 +341,18 @@ with hero_l:
       w = ifr ? ifr.contentWindow : null;
     }} catch (e) {{}}
     if (w) {{
+      function cmd(f, a) {{
+        w.postMessage(JSON.stringify(
+          {{event: "command", func: f, args: a || []}}), "*");
+      }}
       w.postMessage(JSON.stringify({{event: "listening", id: "ff"}}), "*");
-      w.postMessage(JSON.stringify(
-        {{event: "command", func: "seekTo", args: [t, true]}}), "*");
-      w.postMessage(JSON.stringify(
-        {{event: "command", func: "playVideo", args: []}}), "*");
-      clearInterval(timer);
-    }} else if (tries > 8) {{ clearInterval(timer); }}
-  }}, 350);
+      if (!seeked) {{ cmd("seekTo", [t, true]); seeked = true; }}
+      // seekTo while paused/buffering stays paused — keep nudging play for
+      // a few ticks so the jump always lands on a MOVING picture.
+      cmd("playVideo");
+      if (tries >= 6) clearInterval(timer);
+    }} else if (tries > 10) {{ clearInterval(timer); }}
+  }}, 400);
 }})();
 </script>""", height=0)
     else:
