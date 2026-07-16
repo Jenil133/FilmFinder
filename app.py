@@ -122,6 +122,11 @@ def on_pill():
 
 def jump_to(t: int):
     st.session_state.seek_t = int(t)
+    if DEEPLINKS:
+        try:
+            st.query_params["t"] = str(int(t))
+        except Exception:
+            pass
 
 
 def show_similar(m: dict, query: str):
@@ -251,8 +256,21 @@ def render_pulse(slot, moments: list):
 st.set_page_config(page_title="FilmFinder", page_icon="🎬", layout="centered")
 load_settings()
 
-st.session_state.setdefault("seek_t", 0)
-st.session_state.setdefault("query_input", "")
+# Deep links: ?q= pre-runs a search, ?t= pre-seeks the player. Inbound q goes
+# through the same guardrails as typed queries (find_moments sanitizes).
+DEEPLINKS = os.environ.get("ENABLE_DEEPLINKS", "1").lower() in ("1", "true", "yes")
+_q0, _t0 = "", 0
+if DEEPLINKS:
+    try:
+        from search import VIDEO_CONFIG
+        _q0 = st.query_params.get("q", "")
+        _t0 = min(max(int(st.query_params.get("t", "0")), 0),
+                  VIDEO_CONFIG["duration_seconds"])
+    except Exception:
+        _q0, _t0 = "", 0
+
+st.session_state.setdefault("seek_t", _t0)
+st.session_state.setdefault("query_input", _q0)
 
 st.title("🎬 FilmFinder")
 st.markdown("**Ctrl+F for game film** — type what happened, jump straight to the moment.")
@@ -348,7 +366,14 @@ else:
             filters.append(f"time: {mmss(gte) if gte else 'start'} → "
                            f"{mmss(lte) if lte else 'end'}")
         st.caption(f"{len(moments)} moment{'s' if len(moments) != 1 else ''}"
-                   + (f" · filters — {' · '.join(filters)}" if filters else ""))
+                   + (f" · filters — {' · '.join(filters)}" if filters else "")
+                   + (" · 🔗 page URL is shareable" if DEEPLINKS else ""))
+        if DEEPLINKS:
+            try:
+                if st.query_params.get("q") != query:
+                    st.query_params["q"] = query
+            except Exception:
+                pass
         if parsed.get("action_filter_dropped"):
             st.caption(f"⚠️ No moments labeled *{parsed['action_filter']}* — "
                        "showing the closest semantic matches instead.")
