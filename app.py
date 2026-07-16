@@ -144,6 +144,12 @@ def cached_timeline(collection: str):
     return timeline_points(collection)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_stats(collection: str):
+    from stats import match_events
+    return match_events(collection)
+
+
 def add_clip(m: dict, query: str):
     """Save a moment to the session clip board (deduped by timestamp)."""
     board = st.session_state.setdefault("clipboard", [])
@@ -270,6 +276,24 @@ else:
 SHOW_PULSE = os.environ.get("SHOW_TIMELINE", "1").lower() in ("1", "true", "yes")
 pulse_slot = st.container() if SHOW_PULSE else None
 pulse_moments = []
+
+# ---- match overview ------------------------------------------------------------
+if os.environ.get("SHOW_OVERVIEW", "1").lower() in ("1", "true", "yes"):
+    try:
+        from stats import HEADLINE_STATS
+        counts = cached_stats(COLLECTION)
+        with st.expander("📊 Match overview — every stat is clickable"):
+            stat_cols = st.columns(len(HEADLINE_STATS))
+            for col, (a, label, q) in zip(stat_cols, HEADLINE_STATS):
+                s = counts[a]
+                col.button(f"**{s['total']}**  \n{label}", key=f"stat_{a}",
+                           on_click=set_query, args=(q,),
+                           help=f"1st half {s['h1']} · 2nd half {s['h2']}",
+                           use_container_width=True)
+            st.caption("caption-derived event moments (replays can double-count) "
+                       "— not official match stats")
+    except Exception:
+        pass
 
 # ---- search bar + chips -------------------------------------------------------
 query = st.text_input(
