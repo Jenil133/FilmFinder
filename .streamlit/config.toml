@@ -1,0 +1,11 @@
+# Film-room look: dark surfaces so the video player and the Match Pulse strip
+# carry the page. Colors coordinate with PULSE_* in app.py (validated dark set).
+[theme]
+base = "dark"
+primaryColor = "#e66767"
+backgroundColor = "#0f1116"
+secondaryBackgroundColor = "#1a1d24"
+textColor = "#e8e6e3"
+
+[browser]
+gatherUsageStats = false

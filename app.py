@@ -31,11 +31,11 @@ SURPRISE_QUERIES = CHIPS + [
 ]
 SEEK_BUILDUP_S = 3  # land a beat before the moment
 
-# Match Pulse strip: categorical palette validated for CVD safety (worst
-# adjacent deutan ΔE 13.3); identity is never color-alone — legend + tooltips.
-PULSE_COLORS = {"goal": "#2a78d6", "save": "#1baf7a", "corner": "#eda100",
-                "shot": "#008300", "other": "#b4b2a9"}
-PULSE_MARKER = "#e34948"  # search-result markers, distinct from all groups
+# Match Pulse strip: categorical palette validated for CVD safety on the dark
+# surface (#0f1116); identity is never color-alone — legend + tooltips.
+PULSE_COLORS = {"goal": "#3987e5", "save": "#199e70", "corner": "#c98500",
+                "shot": "#008300", "other": "#5f5e5a"}
+PULSE_MARKER = "#e66767"  # search-result markers, distinct from all groups
 
 
 def load_settings():
@@ -104,6 +104,20 @@ def surprise_me():
     pool = [q for q in SURPRISE_QUERIES
             if q != st.session_state.get("query_input")]
     st.session_state.query_input = random.choice(pool)
+
+
+SURPRISE_PILL = "🎲 surprise me"
+
+
+def on_pill():
+    pick = st.session_state.get("chip_pills")
+    if not pick:
+        return
+    if pick == SURPRISE_PILL:
+        surprise_me()
+    else:
+        st.session_state.query_input = pick
+    st.session_state.chip_pills = None  # re-arm so the same pill can fire twice
 
 
 def jump_to(t: int):
@@ -235,8 +249,9 @@ st.session_state.setdefault("seek_t", 0)
 st.session_state.setdefault("query_input", "")
 
 st.title("🎬 FilmFinder")
-st.caption("Ctrl+F for game film — type what happened, jump straight to it. "
-           "Playback is muted on arrival (browser autoplay policy); unmute in the player.")
+st.markdown("**Ctrl+F for game film** — type what happened, jump straight to the moment.")
+st.caption("Indexed: AFC Bournemouth 4–3 Liverpool · full match · CC-BY footage · "
+           "player arrives muted (browser autoplay policy)")
 
 # ---- player ------------------------------------------------------------------
 video_id = os.environ.get("VIDEO_ID", "")
@@ -262,12 +277,8 @@ query = st.text_input(
     key="query_input",
     placeholder='Try "corner kick" or "players arguing with the referee"...',
 )
-chip_cols = st.columns(3)
-for i, chip in enumerate(CHIPS):
-    chip_cols[i % 3].button(chip, key=f"chip_{i}", on_click=set_query,
-                            args=(chip,), use_container_width=True)
-st.button("🎲 Surprise me", key="surprise", on_click=surprise_me,
-          use_container_width=True)
+st.pills("Suggestions", CHIPS + [SURPRISE_PILL], key="chip_pills",
+         on_change=on_pill, label_visibility="collapsed")
 
 # Warm the engine at startup (not on first search): on Streamlit Cloud the
 # fastembed model download costs 10-40s — pay it while the page is being read.
@@ -331,21 +342,28 @@ else:
         for row_start in range(0, len(moments), 3):
             cols = st.columns(3)
             for col, m in zip(cols, moments[row_start: row_start + 3]):
-                with col:
+                with col, st.container(border=True):
                     thumb = THUMBS_DIR / m["frame"]
                     if thumb.exists():
                         st.image(str(thumb), use_container_width=True)
-                    st.markdown(f"**{mmss(m['t'])}**  \n{m['description']}")
+                    dot = PULSE_COLORS.get(m["action"], PULSE_COLORS["other"])
+                    st.markdown(
+                        f"**{mmss(m['t'])}** &nbsp;"
+                        f"<span style='color:{dot}'>●</span> "
+                        f"<small>{m['action'].replace('_', ' ')}</small>  \n"
+                        f"{m['description']}",
+                        unsafe_allow_html=True)
                     st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['t']}",
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)
+                    bcols = st.columns(2)
                     if show_sim and m.get("point_id"):
-                        st.button("✨ More like this", key=f"sim_{m['t']}",
-                                  on_click=show_similar, args=(m, query),
-                                  use_container_width=True)
-                    st.button("➕ Save clip", key=f"save_{m['t']}",
-                              on_click=add_clip, args=(m, query),
-                              use_container_width=True)
+                        bcols[0].button("✨ Similar", key=f"sim_{m['t']}",
+                                        on_click=show_similar, args=(m, query),
+                                        use_container_width=True)
+                    bcols[1].button("➕ Save", key=f"save_{m['t']}",
+                                    on_click=add_clip, args=(m, query),
+                                    use_container_width=True)
 
         # "More like this" row — Qdrant recommend-by-point on the clicked
         # moment's stored vector. Only rendered for the query it came from.
@@ -365,11 +383,17 @@ else:
             else:
                 sim_cols = st.columns(len(similar))
                 for col, m in zip(sim_cols, similar):
-                    with col:
+                    with col, st.container(border=True):
                         thumb = THUMBS_DIR / m["frame"]
                         if thumb.exists():
                             st.image(str(thumb), use_container_width=True)
-                        st.markdown(f"**{mmss(m['t'])}**  \n{m['description']}")
+                        dot = PULSE_COLORS.get(m["action"], PULSE_COLORS["other"])
+                        st.markdown(
+                            f"**{mmss(m['t'])}** &nbsp;"
+                            f"<span style='color:{dot}'>●</span> "
+                            f"<small>{m['action'].replace('_', ' ')}</small>  \n"
+                            f"{m['description']}",
+                            unsafe_allow_html=True)
                         st.button(f"▶ Jump to {mmss(m['t'])}",
                                   key=f"simjump_{m['t']}", on_click=jump_to,
                                   args=(m["t"],), use_container_width=True)
