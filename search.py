@@ -186,9 +186,17 @@ def parse_query_flagged(query: str) -> dict:
         import lyzr_guard
         if lyzr_guard.allowed():
             try:
-                parsed = _lyzr_parse_cached(query)
+                parsed = dict(_lyzr_parse_cached(query))  # copy: callers add keys
                 lyzr_guard.record(True)
-                return dict(parsed)  # shallow copy: callers add keys
+                # LLM arithmetic is not trustworthy: the agent has produced
+                # "last 10 minutes" -> a 60-SECOND window (6275-60, not -600).
+                # Whenever the deterministic parser recognizes a time phrase,
+                # its exact math overrides the agent's; the agent still wins
+                # on action detection and semantic enrichment.
+                kw_time = parse_query(query)["time_range"]
+                if kw_time is not None and parsed.get("time_range") != kw_time:
+                    parsed["time_range"] = kw_time
+                return parsed
             except Exception:
                 lyzr_guard.record(False)
     return parse_query(query)

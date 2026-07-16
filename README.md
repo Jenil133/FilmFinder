@@ -105,12 +105,23 @@ streamlit run app.py
 
 ## Measured accuracy (including the misses)
 
-See [QA.md](QA.md) for the full log. Phase-2 dev-slice results: 5/5 canonical
-queries correct at rank 1; long-tail probes strong on referee/crowd queries,
-honest miss on "counterattack" (captions describe single frames — transitions
-across frames are invisible to a per-frame captioner).
+Full-match numbers, production config (Lyzr parser on), from the repeatable
+harness ([qa_eval.py](qa_eval.py) → [eval_results.md](eval_results.md)):
 
-_TODO(Thu): full-match numbers on 10 queries after the complete index lands._
+- **12/12 scored queries hit at rank 1 (MRR 1.00)** across canonical,
+  time-filter, compound-time, and long-tail categories.
+- **1 expected miss, kept on the scoreboard**: "counterattack after losing
+  the ball" — per-frame captions cannot see multi-frame transitions. Full
+  manual log in [QA.md](QA.md).
+- Methodology honesty: gold windows come from caption-level event extraction
+  (independent of retrieval *ranking*, but bounded by caption quality) plus
+  human-verified QA timestamps — it's a regression harness, not an unbiased
+  recall estimate.
+- The harness caught a real bug on its first run: the Lyzr parser agent did
+  "last 10 minutes" arithmetic wrong (a 60-second window). Fix: the
+  deterministic parser's exact time math now overrides the agent's whenever
+  it recognizes a time phrase — LLMs keep the semantics, regex keeps the
+  arithmetic.
 
 ## Honest limitations
 
