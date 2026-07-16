@@ -55,6 +55,11 @@ def engine():
     from search import get_client, get_embedder
     get_embedder()
     get_client()
+    try:  # pre-pay first-inference + TLS handshake so search #1 is instant
+        list(get_embedder().query_embed("warmup"))[0]
+        get_client().get_collection(COLLECTION)
+    except Exception:
+        pass  # warmup is best-effort; real calls surface real errors
     from search import find_moments, mmss
     return find_moments, mmss
 

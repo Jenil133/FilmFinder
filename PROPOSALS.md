@@ -35,7 +35,7 @@ every search eats the 6s parser timeout + 8s scout timeout before falling back.
 
 ## Tier 1 — recommended plan (in order)
 
-### 1. "More like this" on every card — Qdrant Recommendation API — **2.5h · tonight · top score**
+### 1. ✅ SHIPPED (Thu 01:15 AM, commit ee1fb38) — "More like this" — Qdrant Recommendation API
 One button per result card: click a corner kick, instantly get every other
 corner routine in the match — no typing. Uses Qdrant's **Recommendation API**
 (`RecommendQuery`, recommend-by-stored-point-ID), a differentiator feature most

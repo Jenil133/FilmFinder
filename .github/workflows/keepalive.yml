@@ -1,0 +1,15 @@
+# Keeps the Streamlit Community Cloud demo warm around judging (Fri Jul 17).
+# Community Cloud puts idle apps to sleep; the first visitor then waits out a
+# cold boot + model warmup. A tiny GET every 10 minutes keeps the container
+# counted as active. Delete this workflow after the hackathon.
+name: keep-demo-warm
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ping the demo app
+        run: curl -sfL --max-time 30 -o /dev/null "https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app/" || true
