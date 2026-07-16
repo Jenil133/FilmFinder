@@ -314,11 +314,43 @@ hero_l, hero_r = st.columns([3, 2], gap="large")
 video_id = os.environ.get("VIDEO_ID", "")
 with hero_l:
     if video_id:
-        start = max(st.session_state.seek_t - SEEK_BUILDUP_S, 0)
+        # The player mounts ONCE with a constant URL (first muted autoplay is
+        # the browser-policy price). Jumps seek the SAME player instance via
+        # the YouTube postMessage API below — so the user's volume/unmute
+        # survives every seek instead of resetting with an iframe reload.
+        st.session_state.setdefault(
+            "player_start", max(st.session_state.seek_t - SEEK_BUILDUP_S, 0))
         st.iframe(
-            f"https://www.youtube.com/embed/{video_id}?start={start}&autoplay=1&mute=1",
+            f"https://www.youtube.com/embed/{video_id}"
+            f"?start={st.session_state.player_start}"
+            f"&autoplay=1&mute=1&enablejsapi=1",
             height=400,
         )
+        target = max(st.session_state.seek_t - SEEK_BUILDUP_S, 0)
+        if target != st.session_state.player_start:
+            import streamlit.components.v1 as components
+            components.html(f"""<script>
+(function() {{
+  var t = {target}, tries = 0;
+  var timer = setInterval(function() {{
+    tries++;
+    var w = null;
+    try {{
+      var ifr = window.parent.document.querySelector(
+        'iframe[src*="youtube.com/embed"]');
+      w = ifr ? ifr.contentWindow : null;
+    }} catch (e) {{}}
+    if (w) {{
+      w.postMessage(JSON.stringify({{event: "listening", id: "ff"}}), "*");
+      w.postMessage(JSON.stringify(
+        {{event: "command", func: "seekTo", args: [t, true]}}), "*");
+      w.postMessage(JSON.stringify(
+        {{event: "command", func: "playVideo", args: []}}), "*");
+      clearInterval(timer);
+    }} else if (tries > 8) {{ clearInterval(timer); }}
+  }}, 350);
+}})();
+</script>""", height=0)
     else:
         st.warning("No VIDEO_ID configured — set it in .env locally or in the "
                    "Streamlit secrets dashboard.")
