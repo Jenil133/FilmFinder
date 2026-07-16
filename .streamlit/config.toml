@@ -6,6 +6,17 @@ primaryColor = "#e66767"
 backgroundColor = "#0f1116"
 secondaryBackgroundColor = "#1a1d24"
 textColor = "#e8e6e3"
+borderColor = "#2a2e38"
+baseRadius = "0.75rem"
+linkColor = "#e66767"
+
+[theme.sidebar]
+backgroundColor = "#14161c"
+secondaryBackgroundColor = "#1f232c"
+borderColor = "#2a2e38"
+
+[client]
+toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false

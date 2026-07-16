@@ -75,13 +75,13 @@ def engine():
 # clicks, chips, toggles). Without these caches each rerun re-bought the same
 # search — including both Lyzr agent calls — from a ~20-credit monthly pool.
 # Only successful results are cached; errors stay retryable.
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False)
 def cached_search(query: str, collection: str):
     from search import find_moments
     return find_moments(query, collection=collection)
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False)
 def cached_note(query: str, moments: list):
     from scout_note import scout_note
     return scout_note(query, moments)
@@ -135,9 +135,10 @@ def show_similar(m: dict, query: str):
     st.session_state.similar_to = {"point_id": m["point_id"],
                                    "start_t": m["start_t"], "end_t": m["end_t"],
                                    "t": m["t"], "query": query}
+    st.toast(f"Finding moments similar to {mmss(m['t'])}…", icon="✨")
 
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False)
 def cached_similar(point_id: str, start_t: int, end_t: int, collection: str):
     from search import find_similar
     return find_similar(point_id, start_t, end_t, collection=collection)
@@ -162,6 +163,9 @@ def add_clip(m: dict, query: str):
         board.append({"t": int(m["t"]), "action": m["action"],
                       "description": m["description"], "query": query})
         board.sort(key=lambda c: c["t"])
+        st.toast(f"Saved {mmss(m['t'])} to the clip board", icon="📎")
+    else:
+        st.toast(f"{mmss(m['t'])} is already on the clip board", icon="📎")
 
 
 def remove_clip(t: int):
@@ -253,7 +257,14 @@ def render_pulse(slot, moments: list):
 
 # --------------------------------------------------------------------------- #
 
-st.set_page_config(page_title="FilmFinder", page_icon="🎬", layout="centered")
+st.set_page_config(page_title="FilmFinder", page_icon="🎬", layout="wide",
+                   initial_sidebar_state="collapsed")
+st.markdown("""<style>
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {visibility: hidden;}
+header[data-testid="stHeader"] {background: transparent; height: 2rem;}
+.block-container {padding-top: 1.2rem;}
+</style>""", unsafe_allow_html=True)
 load_settings()
 
 # Deep links: ?q= pre-runs a search, ?t= pre-seeks the player. Inbound q goes
@@ -269,25 +280,48 @@ if DEEPLINKS:
     except Exception:
         _q0, _t0 = "", 0
 
+# Load alive: with no deep link, judges arrive mid-goal with a search already
+# run — action on screen, markers on the strip, zero clicks required.
+if not _q0:
+    _q0 = "goal"
+if not _t0:
+    _t0 = 3734  # free-kick goal past the grey keeper (verified in QA.md)
+
 st.session_state.setdefault("seek_t", _t0)
 st.session_state.setdefault("query_input", _q0)
 
-st.title("🎬 FilmFinder")
-st.markdown("**Ctrl+F for game film** — type what happened, jump straight to the moment.")
-st.caption("Indexed: AFC Bournemouth 4–3 Liverpool · full match · CC-BY footage · "
-           "player arrives muted (browser autoplay policy)")
+st.markdown("""
+<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+  <span style="font-size:2rem;font-weight:800">🎬 FilmFinder</span>
+  <span style="color:#e66767;font-weight:600">Ctrl+F for game film</span>
+</div>
+<div style="display:flex;align-items:center;justify-content:center;gap:18px;
+            background:#1a1d24;border:1px solid #2a2f3a;border-radius:10px;
+            padding:10px 18px;margin-bottom:14px">
+  <span style="text-transform:uppercase;letter-spacing:.12em;font-weight:700">Bournemouth</span>
+  <span style="font-family:ui-monospace,monospace;font-size:1.6rem;font-weight:700;white-space:nowrap">4&#8239;–&#8239;3</span>
+  <span style="text-transform:uppercase;letter-spacing:.12em;font-weight:700">Liverpool</span>
+</div>
+<div style="text-align:center;font-size:.7rem;text-transform:uppercase;
+            letter-spacing:.14em;color:#8a8f9a;margin:-6px 0 12px">
+  full match &middot; 3,138 frames indexed &middot; cc-by footage
+</div>
+""", unsafe_allow_html=True)
 
-# ---- player ------------------------------------------------------------------
+# ---- hero row: player left, search right ---------------------------------------
+hero_l, hero_r = st.columns([3, 2], gap="large")
+
 video_id = os.environ.get("VIDEO_ID", "")
-if video_id:
-    start = max(st.session_state.seek_t - SEEK_BUILDUP_S, 0)
-    st.iframe(
-        f"https://www.youtube.com/embed/{video_id}?start={start}&autoplay=1&mute=1",
-        height=400,
-    )
-else:
-    st.warning("No VIDEO_ID configured — set it in .env locally or in the "
-               "Streamlit secrets dashboard.")
+with hero_l:
+    if video_id:
+        start = max(st.session_state.seek_t - SEEK_BUILDUP_S, 0)
+        st.iframe(
+            f"https://www.youtube.com/embed/{video_id}?start={start}&autoplay=1&mute=1",
+            height=400,
+        )
+    else:
+        st.warning("No VIDEO_ID configured — set it in .env locally or in the "
+                   "Streamlit secrets dashboard.")
 
 # Match Pulse slot: reserved here (under the player), filled at the end of
 # the script once the search results exist. SHOW_TIMELINE is the kill switch.
@@ -313,14 +347,17 @@ if os.environ.get("SHOW_OVERVIEW", "1").lower() in ("1", "true", "yes"):
     except Exception:
         pass
 
-# ---- search bar + chips -------------------------------------------------------
-query = st.text_input(
-    "Search the match",
-    key="query_input",
-    placeholder='Try "corner kick" or "players arguing with the referee"...',
-)
-st.pills("Suggestions", CHIPS + [SURPRISE_PILL], key="chip_pills",
-         on_change=on_pill, label_visibility="collapsed")
+# ---- search bar + chips (rendered into the hero's right column) ---------------
+with hero_r:
+    st.markdown("##### Search the match")
+    query = st.text_input(
+        "Search the match",
+        key="query_input",
+        label_visibility="collapsed",
+        placeholder='Try "corner kick" or "players arguing with the referee"...',
+    )
+    st.pills("Suggestions", CHIPS + [SURPRISE_PILL], key="chip_pills",
+             on_change=on_pill, label_visibility="collapsed")
 
 # Warm the engine at startup (not on first search): on Streamlit Cloud the
 # fastembed model download costs 10-40s — pay it while the page is being read.
