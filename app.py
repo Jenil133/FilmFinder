@@ -10,9 +10,9 @@ from pathlib import Path
 
 import streamlit as st
 
-# ---- Thursday's one-line swap lives here -----------------------------------
-COLLECTION = "filmfinder_dev"
-THUMBS_DIR = Path(__file__).parent / "thumbs/dev"  # cwd-independent
+# ---- Full match (swapped Thursday from the filmfinder_dev slice) -----------
+COLLECTION = "filmfinder_match01"
+THUMBS_DIR = Path(__file__).parent / "thumbs/match01"  # cwd-independent
 # -----------------------------------------------------------------------------
 
 CHIPS = ["corner kick", "goalkeeper save", "shot on goal",
