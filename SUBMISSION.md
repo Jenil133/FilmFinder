@@ -9,30 +9,33 @@
 - **Video:** _TODO(Thu): link_
 - **Track:** _TODO(Thu): confirm exact track name in portal_
 
-## Description (paste-ready, ~230 words)
+## Description (paste-ready, ~250 words)
 
-Coaches and analysts scrub hours of footage to find seconds of signal — every
-corner, every keeper error, every late-game push. Professional tagging tools
-cost thousands per season and lock you into fixed taxonomies. FilmFinder gives
+Coaches scrub hours of footage to find seconds of signal — every corner,
+every keeper error, every late-game push. Professional tagging tools cost
+thousands per season and lock you into fixed taxonomies. FilmFinder gives
 grassroots teams the core capability for the price of a YouTube link: type
-what happened in plain English, and the match video jumps to that moment.
+what happened in plain English and the match video jumps to that moment.
 
-The trick is treating video search as a text problem. A vision LLM watches the
-match once, offline, writing structured captions per frame (17-action
-taxonomy, jersey colors, field zone, confidence). FastEmbed vectors plus those
-structured fields land in Qdrant, whose hybrid search fuses semantic
-similarity with hard action and time filters in a single query — "saves in the
-last 10 minutes" becomes a vector plus `action=save` plus `t≥5675s` against
-measured kickoff and halftime boundaries. At query time no LLM touches a
-frame, so search is sub-second on an entirely free-tier stack.
+The trick is treating video search as a text problem. A vision LLM watches
+the match once, offline, writing structured captions per frame (17-action
+taxonomy, jersey colors, zone, confidence). FastEmbed vectors plus those
+fields land in Qdrant, whose hybrid search fuses semantic similarity with
+hard action and time filters in one query — "saves in the last 10 minutes"
+becomes a vector plus `action=save` plus `t≥5675s` against measured kickoff
+and halftime boundaries. No LLM touches a frame at query time, so search is
+sub-second on a free-tier stack. The whole match renders as a clickable
+Match Pulse timeline where results ignite as markers; one click on any
+result finds similar moments via Qdrant's Recommendation API (search by a
+frame's own stored vector — no typing); saved clips export as a session
+plan of timestamped video links.
 
-Two Lyzr agents extend the core behind feature flags with plain-Python
-fallbacks: a query-parser that handles long-tail phrasing ("when did the
-keeper mess up"), and a Scout Note that summarizes retrieved moments — gated
-by code that rejects any bullet citing a timestamp not actually retrieved.
-Guardrails sanitize query input on the way in (Enkrypt-ready seams). One full
-Premier League match (CC-BY footage) is indexed and searchable in the live
-demo, with measured accuracy — including the misses — documented in the repo.
+Two Lyzr agents extend the core behind flags with plain-Python fallbacks: a
+query parser for long-tail phrasing and a Scout Note whose every bullet must
+cite a retrieved timestamp or it doesn't render. A repeatable eval harness
+scores 12/12 queries at rank 1 (MRR 1.00) — and caught a real agent
+arithmetic bug on its first run. The one known miss (counterattacks) stays
+on the scoreboard: honest limitations are documented, not hidden.
 
 ## Demo video script (≤2:00, screen recording + voiceover)
 

@@ -5,6 +5,12 @@
 🔗 **Live demo:** https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app
 🎬 **Demo video:** _TODO(Thu): ≤2-min video link_
 
+**One-click tours** (every search + moment is a URL):
+[a goal past the diving keeper](https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app/?q=goal&t=5224) ·
+[when did the keeper mess up](https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app/?q=when+did+the+keeper+mess+up) ·
+[players arguing with the referee](https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app/?q=players+arguing+with+the+referee) ·
+[shots in the last 10 minutes of the first half](https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app/?q=shots+in+the+last+10+minutes+of+the+first+half)
+
 ## The problem
 
 Coaches and analysts scrub through hours of footage to find seconds of signal —
