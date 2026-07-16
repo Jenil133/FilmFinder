@@ -308,6 +308,7 @@ def cluster_moments(hits, gap_seconds: int = 10, max_moments: int = 6):
             "action": rep.payload["action"],
             "description": rep.payload["description"],
             "n_frames": len(cluster),
+            "point_id": str(rep.id),  # enables recommend-by-point ("More like this")
         })
     moments.sort(key=lambda m: m["score"], reverse=True)
     return moments[:max_moments]
@@ -318,6 +319,31 @@ def find_moments(query: str, collection: str = DEFAULT_COLLECTION,
     """The one call the UI makes: query in, clustered moments out."""
     parsed, hits = search(query, collection=collection, top_k=top_k, debug=debug)
     return parsed, cluster_moments(hits, max_moments=max_moments)
+
+
+def find_similar(point_id: str, exclude_start: int, exclude_end: int,
+                 collection: str = DEFAULT_COLLECTION, top_k: int = 25,
+                 max_moments: int = 4):
+    """'More like this': Qdrant Recommendation API using the stored vector of
+    an indexed frame as the query — no re-embedding, no query text.
+
+    The source moment (±10s around its span) is excluded client-side: the
+    recommend call returns the source point and its immediate neighbors at the
+    top, which the user is already looking at.
+    """
+    from qdrant_client import models
+    hits = get_client().query_points(
+        collection_name=collection,
+        query=models.RecommendQuery(recommend=models.RecommendInput(
+            positive=[point_id],
+            strategy=models.RecommendStrategy.AVERAGE_VECTOR,
+        )),
+        limit=top_k,
+        with_payload=True,
+    ).points
+    lo, hi = exclude_start - 10, exclude_end + 10
+    hits = [h for h in hits if not lo <= h.payload["t"] <= hi]
+    return cluster_moments(hits, max_moments=max_moments)
 
 
 def mmss(t: float) -> str:

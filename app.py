@@ -98,6 +98,20 @@ def jump_to(t: int):
     st.session_state.seek_t = int(t)
 
 
+def show_similar(m: dict, query: str):
+    """Remember which moment to expand; the originating query is stored so a
+    stale similar-row never renders under a different search's results."""
+    st.session_state.similar_to = {"point_id": m["point_id"],
+                                   "start_t": m["start_t"], "end_t": m["end_t"],
+                                   "t": m["t"], "query": query}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cached_similar(point_id: str, start_t: int, end_t: int, collection: str):
+    from search import find_similar
+    return find_similar(point_id, start_t, end_t, collection=collection)
+
+
 # --------------------------------------------------------------------------- #
 
 st.set_page_config(page_title="FilmFinder", page_icon="🎬", layout="centered")
@@ -172,6 +186,7 @@ else:
         # render so the agent's latency never delays the results.
         note_slot = st.container()
 
+        show_sim = os.environ.get("SHOW_SIMILAR", "1").lower() in ("1", "true", "yes")
         for row_start in range(0, len(moments), 3):
             cols = st.columns(3)
             for col, m in zip(cols, moments[row_start: row_start + 3]):
@@ -183,6 +198,37 @@ else:
                     st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['t']}",
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)
+                    if show_sim and m.get("point_id"):
+                        st.button("✨ More like this", key=f"sim_{m['t']}",
+                                  on_click=show_similar, args=(m, query),
+                                  use_container_width=True)
+
+        # "More like this" row — Qdrant recommend-by-point on the clicked
+        # moment's stored vector. Only rendered for the query it came from.
+        sim = st.session_state.get("similar_to")
+        if show_sim and sim and sim["query"] == query:
+            st.divider()
+            st.subheader(f"Moments similar to {mmss(sim['t'])}")
+            try:
+                similar = cached_similar(sim["point_id"], sim["start_t"],
+                                         sim["end_t"], COLLECTION)
+            except Exception:
+                similar = None
+            if similar is None:
+                st.caption("Similarity search hiccup — try again in a moment.")
+            elif not similar:
+                st.caption("Nothing else in the match looks like this moment.")
+            else:
+                sim_cols = st.columns(len(similar))
+                for col, m in zip(sim_cols, similar):
+                    with col:
+                        thumb = THUMBS_DIR / m["frame"]
+                        if thumb.exists():
+                            st.image(str(thumb), use_container_width=True)
+                        st.markdown(f"**{mmss(m['t'])}**  \n{m['description']}")
+                        st.button(f"▶ Jump to {mmss(m['t'])}",
+                                  key=f"simjump_{m['t']}", on_click=jump_to,
+                                  args=(m["t"],), use_container_width=True)
 
         note = cached_note(query, moments)
         if note:
