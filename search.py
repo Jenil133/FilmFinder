@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import time
 
 from dotenv import load_dotenv
 
@@ -246,19 +247,24 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
     """
     from guardrails import sanitize_query
     query, flagged = sanitize_query(query)
+    t0 = time.perf_counter()
     parsed = parse_query_flagged(query)
+    parse_ms = (time.perf_counter() - t0) * 1000
     if flagged:
         parsed = {**parsed, "sanitized": True}
     # Empty semantic text (pure time/action-phrase query) ranks by a neutral
     # probe so ordering isn't driven by similarity to e.g. "second half".
     embed_text = parsed["semantic_query"] or "soccer match action"
+    t0 = time.perf_counter()
     vec = list(get_embedder().query_embed(embed_text))[0].tolist()
+    embed_ms = (time.perf_counter() - t0) * 1000
     client = get_client()
 
     qfilter = build_filter(parsed, include_action=True)
     if debug:
         print(f"  [debug] parsed: {parsed}")
         print(f"  [debug] qdrant filter: {qfilter}")
+    t0 = time.perf_counter()
     hits = client.query_points(collection_name=collection, query=vec,
                                limit=top_k, query_filter=qfilter,
                                with_payload=True).points
@@ -272,6 +278,16 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
         hits = client.query_points(collection_name=collection, query=vec,
                                    limit=top_k, query_filter=qfilter,
                                    with_payload=True).points
+    qdrant_ms = (time.perf_counter() - t0) * 1000
+
+    # X-ray payload: the FINAL filter that produced the hits (post-fallback),
+    # JSON-safe for the UI. Purely additive keys — nothing downstream reads them.
+    parsed = {**parsed,
+              "timings": {"parse_ms": round(parse_ms, 1),
+                          "embed_ms": round(embed_ms, 1),
+                          "qdrant_ms": round(qdrant_ms, 1)},
+              "qdrant_filter": (qfilter.model_dump(exclude_none=True)
+                                if qfilter is not None else None)}
     return parsed, hits
 
 

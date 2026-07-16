@@ -367,6 +367,10 @@ _, mmss = engine()  # searches go through cached_search; engine() pre-warms mode
 if os.environ.get("ENABLE_CLIPBOARD", "1").lower() in ("1", "true", "yes"):
     clips = st.session_state.get("clipboard", [])
     with st.sidebar:
+        st.toggle("🔬 X-ray mode", key="xray",
+                  help="Expose the pipeline: parsed query contract, the exact "
+                       "Qdrant filter, per-stage latency, similarity scores.")
+        st.divider()
         st.subheader(f"📎 Clip board ({len(clips)})")
         if not clips:
             st.caption("Save moments from the results, then export a session "
@@ -420,6 +424,25 @@ else:
 
         pulse_moments = moments
 
+        if st.session_state.get("xray"):
+            with st.expander("🔬 X-ray — what just happened", expanded=True):
+                tm = parsed.get("timings", {})
+                xcols = st.columns(3)
+                xcols[0].metric("parse", f"{tm.get('parse_ms', 0):.0f} ms",
+                                help=f"parser: {parsed.get('parser', '?')}")
+                xcols[1].metric("embed", f"{tm.get('embed_ms', 0):.0f} ms",
+                                help="bge-small-en-v1.5, 384-dim, local")
+                xcols[2].metric("Qdrant", f"{tm.get('qdrant_ms', 0):.0f} ms",
+                                help="hybrid query, cloud round-trip")
+                st.markdown("**Parsed contract**")
+                st.json({k: parsed.get(k) for k in
+                         ("parser", "action_filter", "time_range",
+                          "semantic_query", "action_filter_dropped", "sanitized")
+                         if parsed.get(k) is not None})
+                st.markdown("**Qdrant filter (as executed)**")
+                st.json(parsed.get("qdrant_filter")
+                        or {"filter": "none — pure semantic search"})
+
         # Scout Note panel: reserve the slot now, fill it after the cards
         # render so the agent's latency never delays the results.
         note_slot = st.container()
@@ -439,6 +462,9 @@ else:
                         f"<small>{m['action'].replace('_', ' ')}</small>  \n"
                         f"{m['description']}",
                         unsafe_allow_html=True)
+                    if st.session_state.get("xray"):
+                        st.progress(max(0.0, min(float(m["score"]), 1.0)),
+                                    text=f"similarity {m['score']:.3f}")
                     st.button(f"▶ Jump to {mmss(m['t'])}", key=f"jump_{m['t']}",
                               on_click=jump_to, args=(m["t"],),
                               use_container_width=True)
