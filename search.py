@@ -228,7 +228,11 @@ def search(query: str, collection: str = DEFAULT_COLLECTION, top_k: int = 25,
     detected. If a hard action filter yields nothing (VLM labeling gaps), we
     retry on semantics alone so the long-tail path still carries the query.
     """
+    from guardrails import sanitize_query
+    query, flagged = sanitize_query(query)
     parsed = parse_query_flagged(query)
+    if flagged:
+        parsed = {**parsed, "sanitized": True}
     # Empty semantic text (pure time/action-phrase query) ranks by a neutral
     # probe so ordering isn't driven by similarity to e.g. "second half".
     embed_text = parsed["semantic_query"] or "soccer match action"

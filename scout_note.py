@@ -68,21 +68,12 @@ def _lyzr_note(query: str, moments: list) -> dict:
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", resp.json()["response"].strip())
     data = json.loads(text)
 
-    # The hard rule: every cited t must exist in the retrieved set.
-    valid_ts = {int(m["t"]) for m in moments}
-    bullets = data["bullets"]
-    if not isinstance(bullets, list) or not 1 <= len(bullets) <= MAX_BULLETS:
-        raise ValueError(f"bad bullet count: {bullets!r}")
-    out = []
-    for b in bullets:
-        t = int(b["t"])
-        if t not in valid_ts:
-            raise ValueError(f"ungrounded citation t={t}")
-        txt = str(b["text"]).strip()
-        if not 10 <= len(txt) <= 250:
-            raise ValueError(f"bad bullet text: {txt!r}")
-        out.append({"t": t, "time": mmss(t), "text": txt})
-    return {"bullets": out, "source": "lyzr"}
+    # The hard rule (guardrails seam 2): every cited t must exist in the
+    # retrieved set, or the whole note is discarded by the caller.
+    from guardrails import ground_bullets
+    grounded = ground_bullets(data, {int(m["t"]) for m in moments})
+    return {"bullets": [{**b, "time": mmss(b["t"])} for b in grounded],
+            "source": "lyzr"}
 
 
 def _local_note(moments: list) -> dict:

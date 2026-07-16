@@ -1,9 +1,75 @@
-# FilmFinder
-Ctrl+F for game film: type plain English, jump to the exact moments in match video
+# FilmFinder ⚽🔍
 
-> 🚧 **Under construction** — hackathon build in progress (July 2026).
+**Ctrl+F for game film: type plain English, jump to the exact moment in match video.**
 
-**Stack:** ffmpeg frames → Gemini Flash captions → FastEmbed → Qdrant → Streamlit.
+🔗 **Live demo:** https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app
+🎬 **Demo video:** _TODO(Thu): ≤2-min video link_
+
+## The problem
+
+Coaches and analysts scrub through hours of footage to find seconds of signal —
+every corner, every keeper error, every late-game push. Professional tools
+(fixed taxonomies, human tagging queues) start at thousands per season.
+FilmFinder gives grassroots teams the core capability for the price of a
+YouTube link: search a match like a document, click, and the video jumps there.
+
+## How it works
+
+```
+             BUILD TIME (once per match)                RUNTIME (every search, <1s)
+┌──────────┐  ┌────────┐  ┌─────────────┐              ┌────────────────────────┐
+│ match    │→ │ ffmpeg │→ │ Gemini VLM  │              │ "saves in the last     │
+│ video    │  │ frames │  │ captions    │              │  10 minutes"           │
+└──────────┘  │ (1/2s) │  │ action+desc │              └───────────┬────────────┘
+              └────────┘  └──────┬──────┘                          ▼
+                                 ▼                     ┌────────────────────────┐
+                          ┌─────────────┐              │ query parser           │
+                          │ FastEmbed   │              │ (Lyzr agent, python    │
+                          │ 384-d       │              │  fallback)             │
+                          └──────┬──────┘              └───────────┬────────────┘
+                                 ▼                                 ▼
+                          ┌─────────────────────────────────────────────────────┐
+                          │ Qdrant: vector similarity + action/time payload     │
+                          │ filters in ONE query (hybrid search)                │
+                          └──────────────────────────┬──────────────────────────┘
+                                                     ▼
+                                     ┌────────────────────────────────┐
+                                     │ 10s moment clustering → cards  │
+                                     │ → YouTube player seeks to t−3s │
+                                     └────────────────────────────────┘
+```
+
+- **Captions, not video embeddings, are the index.** A vision LLM watches each
+  frame once and writes structured JSON (17-action taxonomy, description with
+  jersey colors, zone, confidence). At query time no LLM ever touches a frame —
+  that's why search is sub-second and hosting is free-tier.
+- **Queries decompose into three signals**: a hard action filter
+  (`saves → action=save`), a time window computed against the *measured*
+  kickoff/halftime boundaries (`last 10 minutes → t ≥ 5675s`), and a semantic
+  vector for everything else. Qdrant runs all three in one call.
+- **Every timestamp in the UI is a measured video timestamp** — clicking a
+  result seeks the official YouTube embed 3 seconds before the moment, so you
+  see the buildup.
+
+## Sponsor stack
+
+| Tool | Role | Status |
+|---|---|---|
+| **Qdrant** | Structural backbone: hybrid retrieval (vectors + `action`/`t` payload indexes). The product does not exist without it. | Live |
+| **Lyzr Studio** | Agent #1 parses long-tail phrasing into the retrieval contract ("when did the keeper mess up" → enriched semantic query). Agent #2 writes the Scout Note panel — a 2-3 bullet tactical summary of the retrieved moments. Both created programmatically via the v3 API, both behind flags (`USE_LYZR_PARSER`, `USE_LYZR_SCOUT`), both with plain-Python fallbacks: a Lyzr outage degrades capability, never availability. | Live behind flags |
+| **Enkrypt AI** | `guardrails.py` guards the two trust seams — query-input sanitization (prompt-injection is stripped, flagged, and disclosed in the UI) and Scout-Note grounding validation (every bullet must cite a timestamp present in the retrieved set, or the note is discarded). Implemented as policy-shaped functions so the hosted Enkrypt equivalents can replace the bodies without touching call sites — an **Enkrypt-ready integration point**, honestly labeled: the seams are self-built today. | Enkrypt-ready |
+
+The design rule throughout: **the deterministic core never depends on a
+sponsor API being up.** Flags + fallbacks + a validation layer between every
+agent and the UI.
+
+## Hallucination policy
+
+The only free text an LLM contributes at runtime is the Scout Note, and it
+passes a code-enforced gate: bullets citing any timestamp not present in the
+actual retrieved set are rejected wholesale, and a deterministic summarizer
+(grounded by construction) takes over. Captions themselves carry per-frame
+`confidence` and `prompt_version` for auditability.
 
 ## Quick start (dev)
 
@@ -14,14 +80,43 @@ cp .env.example .env        # fill in your keys
 python verify_keys.py       # every key verified with a real call
 ```
 
-Pipeline (Phase 1 kill-test):
+Full pipeline:
 
 ```bash
-python extract_frames.py --video match01.mp4 --start 00:20:00 --duration 720 --out frames/dev
-python captioner.py --frames-dir frames/dev --out captions_dev.jsonl
-python indexer.py --captions captions_dev.jsonl --collection filmfinder_dev
-python killtest.py
+python extract_frames.py --video match01.mp4 --out frames/match01
+python captioner.py --frames-dir frames/match01 --out captions_match01.jsonl
+python indexer.py --captions captions_match01.jsonl --collection filmfinder_match01
+python search.py "corner kick" --collection filmfinder_match01   # CLI sanity check
 streamlit run app.py
 ```
 
-Footage license: see [ATTRIBUTION.md](ATTRIBUTION.md).
+## Measured accuracy (including the misses)
+
+See [QA.md](QA.md) for the full log. Phase-2 dev-slice results: 5/5 canonical
+queries correct at rank 1; long-tail probes strong on referee/crowd queries,
+honest miss on "counterattack" (captions describe single frames — transitions
+across frames are invisible to a per-frame captioner).
+
+_TODO(Thu): full-match numbers on 10 queries after the complete index lands._
+
+## Honest limitations
+
+- **One match indexed.** The pipeline is match-agnostic; the demo corpus isn't.
+- **Teams are jersey colors, not names.** Captions say who is *near* the ball,
+  not who *took* the kick — team attribution is approximate.
+- **Recall is caption-bound.** If the VLM didn't write it, search can't find
+  it. Frame sampling at 2s can miss ball-strike instants; multi-frame events
+  (counterattacks) exceed a per-frame captioner's vocabulary.
+- **Playback needs the YouTube embed** to stay public and embeddable.
+
+## Roadmap
+
+Self-hosted deployment (local Qdrant + local embedder + club-owned captions)
+keeps youth-team footage on club hardware — nothing leaves the building except
+the coach's queries. The open stack is the point: we built the hard part, not
+rented it.
+
+## Footage
+
+AFC Bournemouth 4–3 Liverpool, official club channel, Creative Commons
+Attribution — verified on access (2026-07-15). Details: [ATTRIBUTION.md](ATTRIBUTION.md).

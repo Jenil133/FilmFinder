@@ -17,6 +17,18 @@ THUMBS_DIR = Path(__file__).parent / "thumbs/dev"  # cwd-independent
 
 CHIPS = ["corner kick", "goalkeeper save", "shot on goal",
          "throw-in", "celebration", "tackle in the box"]
+# Longer tail than the chips — the surprise button's job is showing range.
+SURPRISE_QUERIES = CHIPS + [
+    "players arguing with the referee",
+    "when did the keeper mess up",
+    "diving save",
+    "free kick near the box",
+    "header",
+    "goals in the second half",
+    "shots in the last 10 minutes",
+    "injury stoppage",
+    "fans celebrating",
+]
 SEEK_BUILDUP_S = 3  # land a beat before the moment
 
 
@@ -59,6 +71,13 @@ def set_query(q: str):
     st.session_state.query_input = q
 
 
+def surprise_me():
+    import random
+    pool = [q for q in SURPRISE_QUERIES
+            if q != st.session_state.get("query_input")]
+    st.session_state.query_input = random.choice(pool)
+
+
 def jump_to(t: int):
     st.session_state.seek_t = int(t)
 
@@ -97,6 +116,8 @@ chip_cols = st.columns(3)
 for i, chip in enumerate(CHIPS):
     chip_cols[i % 3].button(chip, key=f"chip_{i}", on_click=set_query,
                             args=(chip,), use_container_width=True)
+st.button("🎲 Surprise me", key="surprise", on_click=surprise_me,
+          use_container_width=True)
 
 # Warm the engine at startup (not on first search): on Streamlit Cloud the
 # fastembed model download costs 10-40s — pay it while the page is being read.
@@ -127,6 +148,9 @@ else:
         if parsed.get("action_filter_dropped"):
             st.caption(f"⚠️ No moments labeled *{parsed['action_filter']}* — "
                        "showing the closest semantic matches instead.")
+        if parsed.get("sanitized"):
+            st.caption("🛡️ Parts of that query looked like instructions rather "
+                       "than soccer — searched a cleaned version.")
 
         # Scout Note panel: reserve the slot now, fill it after the cards
         # render so the agent's latency never delays the results.
