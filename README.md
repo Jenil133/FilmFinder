@@ -51,6 +51,19 @@ YouTube link: search a match like a document, click, and the video jumps there.
   result seeks the official YouTube embed 3 seconds before the moment, so you
   see the buildup.
 
+Beyond search, three things the index makes cheap:
+
+- **Match Pulse** — a clickable timeline strip under the player drawing every
+  indexed frame as an action-colored tick across the full 105 minutes; search
+  results ignite as markers on it, and clicking one seeks the video there.
+- **✨ More like this** — one click on any result finds the most similar
+  moments in the match via Qdrant's Recommendation API (recommend by stored
+  point ID: no query text, no re-embedding — click one corner routine, get
+  that team's other corners).
+- **📎 Clip board** — save moments across searches and export a session plan
+  where every line is a timestamped `youtu.be` deep link a coach can paste
+  straight into the team chat.
+
 ## Sponsor stack
 
 | Tool | Role | Status |

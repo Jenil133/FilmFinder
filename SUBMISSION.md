@@ -38,12 +38,13 @@ demo, with measured accuracy — including the misses — documented in the repo
 
 | Clock | Shot | Voiceover beat |
 |---|---|---|
-| 0:00–0:15 | Deployed app, cursor idle on search bar | "This is FilmFinder — Ctrl+F for game film. One full Premier League match indexed. Watch." |
-| 0:15–0:40 | Type **"corner kick"** → results appear → click a jump button → video seeks, corner plays | "Type what happened. Click. The video jumps there — three seconds early so you see the buildup." |
-| 0:40–1:05 | Type **"saves in the last 10 minutes of the first half"** → point at the filter caption | "It's not just keywords. Action filters and time windows computed off the real match clock, fused with semantic search in one Qdrant query." |
-| 1:05–1:30 | Type **"when did the keeper mess up"** → results + Scout Note panel | "Long-tail phrasing goes through a Lyzr agent. And this Scout Note is grounded — every bullet must cite a retrieved timestamp, enforced in code, or it doesn't render." |
-| 1:30–1:45 | Click **🎲 Surprise me** → whatever lands | "Everything degrades gracefully — agents behind flags, fallbacks everywhere. Judges: try to break it." |
-| 1:45–2:00 | README limitations section on screen | "One match, jersey-color team IDs, caption-bound recall — the README tells the truth. Built in four days on a free stack: Qdrant, Lyzr, Gemini, Streamlit." |
+| 0:00–0:12 | Deployed app: player + the Match Pulse strip idle below it | "This is FilmFinder — Ctrl+F for game film. One full Premier League match indexed. That strip is the whole match, every moment color-coded." |
+| 0:12–0:35 | Type **"corner kick"** → six red markers ignite on the strip → click a marker → video seeks, corner plays | "Type what happened, and watch it light up across 105 minutes. Click a marker — the video jumps there, three seconds early so you see the buildup." |
+| 0:35–0:55 | Type **"saves in the last 10 minutes of the first half"** → point at the filter caption | "Not just keywords: action filters plus time windows computed off the real match clock, fused with semantic vectors in one Qdrant query." |
+| 0:55–1:15 | Type **"when did the keeper mess up"** → results + Scout Note panel | "Long-tail phrasing goes through a Lyzr agent. The Scout Note is grounded — every bullet must cite a retrieved timestamp, enforced in code, or it doesn't render." |
+| 1:15–1:35 | Click **✨ More like this** on a corner card → same team's other corners appear | "One click, no typing — Qdrant's Recommendation API searches by the moment's own stored vector. Click one corner routine, get their whole set-piece pattern." |
+| 1:35–1:50 | **➕ Save clip** twice → sidebar → **Export session plan** → show the .md with youtu.be links | "Save what matters, export a session plan — every line a timestamped link a coach pastes into the team chat." |
+| 1:50–2:00 | README limitations section on screen | "One match, jersey-color team IDs, caption-bound recall — the README tells the truth. Four days, free stack: Qdrant, Lyzr, Gemini, Streamlit." |
 
 Recording notes: 1080p, hide bookmarks bar, mute mic pops, do a full dry run
 first — the first search after deploy is slower (model warm-up), so warm the

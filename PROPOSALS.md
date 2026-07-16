@@ -51,7 +51,7 @@ hackathon teams never touch → strongest single Qdrant-prize move available.
   (our collection is single unnamed vector).
 - **Safety:** invisible until clicked; same try/except pattern as `run_search`.
 
-### 2. Match Pulse — clickable full-match timeline strip — **3h hard box · Thursday · demo centerpiece**
+### 2. ✅ SHIPPED (Thu 02:15 AM, commit 7d92871, ~50 min of the 3h box) — Match Pulse timeline
 A strip under the player plotting all ~3.1k indexed frames by time, colored by
 action; search results ignite as large markers on it. Judge types "corner
 kick" and watches dots light up along 105 minutes of match — the invisible
@@ -67,7 +67,7 @@ visibly dominates, matching the README).
 - **Safety:** `SHOW_TIMELINE` flag, whole render in try/except; degrades to
   display-only if selection events misbehave on Cloud.
 
-### 3. Keep-alive pinger + real inference warmup — **1h · Thursday**
+### 3. ✅ SHIPPED (Thu 01:25 AM, a2ea950 + magic-render hotfix in 7d92871) — Keep-alive pinger + warmup
 GitHub Actions cron curls the app every 10 min from Thursday evening through
 Friday noon so Community Cloud never sleeps, plus one dummy
 `query_embed('warmup')` + `get_collection()` inside `engine()` so the first
@@ -75,7 +75,7 @@ judge search pays ~0s extra. Kills the classic hackathon demo-killer.
 - Verifier: marginal warmup win is ~0.3–1s (ONNX session already built in the
   constructor) — still worth one line; the cron is the real win.
 
-### 4. Clip board + session-plan export — **2.5h · Thursday stretch (first to cut)**
+### 4. ✅ SHIPPED (Thu 02:40 AM, commit 9328125) — Clip board + session-plan export
 "➕ Save" on each card collects moments in the sidebar; one click downloads a
 session plan (Markdown/CSV) where every line is `mm:ss · action · description ·
 https://youtu.be/{id}?t={s}` deep link. This is literally how grassroots
