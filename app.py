@@ -31,6 +31,12 @@ SURPRISE_QUERIES = CHIPS + [
 ]
 SEEK_BUILDUP_S = 3  # land a beat before the moment
 
+# Match Pulse strip: categorical palette validated for CVD safety (worst
+# adjacent deutan ΔE 13.3); identity is never color-alone — legend + tooltips.
+PULSE_COLORS = {"goal": "#2a78d6", "save": "#1baf7a", "corner": "#eda100",
+                "shot": "#008300", "other": "#b4b2a9"}
+PULSE_MARKER = "#e34948"  # search-result markers, distinct from all groups
+
 
 def load_settings():
     """Streamlit secrets (deployed) win; fall back to .env (local)."""
@@ -56,8 +62,9 @@ def engine():
     get_embedder()
     get_client()
     try:  # pre-pay first-inference + TLS handshake so search #1 is instant
-        list(get_embedder().query_embed("warmup"))[0]
-        get_client().get_collection(COLLECTION)
+        # assigned, not bare: Streamlit magic auto-renders bare expressions
+        _warm = list(get_embedder().query_embed("warmup"))[0]
+        _info = get_client().get_collection(COLLECTION)
     except Exception:
         pass  # warmup is best-effort; real calls surface real errors
     from search import find_moments, mmss
@@ -117,6 +124,80 @@ def cached_similar(point_id: str, start_t: int, end_t: int, collection: str):
     return find_similar(point_id, start_t, end_t, collection=collection)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def cached_timeline(collection: str):
+    from search import timeline_points
+    return timeline_points(collection)
+
+
+def pulse_seek():
+    """Chart-click callback. Runs BEFORE the script rerun, so the player
+    iframe (rendered above the chart) picks up the new seek this same run."""
+    try:
+        pts = st.session_state["pulse"]["selection"]["seek"]
+        if pts:
+            jump_to(int(pts[0]["t"]))
+    except Exception:
+        pass  # deselect events carry no points
+
+
+def render_pulse(slot, moments: list):
+    """Match Pulse: every indexed frame as an action-colored tick across the
+    full video, with the current search's moments as clickable markers."""
+    import altair as alt
+    import pandas as pd
+    from search import VIDEO_CONFIG
+
+    rows = cached_timeline(COLLECTION)
+    if not rows:
+        return
+    df = pd.DataFrame(rows, columns=["t", "action"])
+    df["group"] = df["action"].where(df["action"].isin(PULSE_COLORS), "other")
+    df["min"] = df["t"] / 60.0
+    df["time"] = df["t"].apply(mmss)
+    domain = ["goal", "save", "corner", "shot", "other"]
+    dur_min = VIDEO_CONFIG["duration_seconds"] / 60.0
+
+    base = alt.Chart(df).mark_tick(thickness=2, size=16).encode(
+        x=alt.X("min:Q", title=None,
+                scale=alt.Scale(domain=[0, dur_min], nice=False),
+                axis=alt.Axis(grid=False, labelExpr='datum.value + "′"')),
+        color=alt.Color("group:N", title=None,
+                        scale=alt.Scale(domain=domain,
+                                        range=[PULSE_COLORS[g] for g in domain]),
+                        legend=alt.Legend(orient="top", direction="horizontal")),
+        opacity=alt.condition(alt.datum.group == "other",
+                              alt.value(0.18), alt.value(0.85)),
+        tooltip=[alt.Tooltip("time:N", title="video"),
+                 alt.Tooltip("action:N")],
+    ).properties(height=72)
+
+    chart = base
+    if moments:
+        mdf = pd.DataFrame([{"min": m["t"] / 60.0, "t": int(m["t"]),
+                             "time": mmss(m["t"]), "action": m["action"]}
+                            for m in moments])
+        sel = alt.selection_point(name="seek", fields=["t"], on="click")
+        marks = alt.Chart(mdf).mark_point(
+            shape="triangle-down", size=200, filled=True,
+            color=PULSE_MARKER, opacity=1, yOffset=-16,
+        ).encode(
+            x="min:Q",
+            tooltip=[alt.Tooltip("time:N", title="jump to"),
+                     alt.Tooltip("action:N")],
+        ).add_params(sel)
+        chart = base + marks
+
+    with slot:
+        if moments:
+            # on_select is only legal when the chart carries a selection param
+            st.altair_chart(chart, use_container_width=True, key="pulse",
+                            on_select=pulse_seek)
+            st.caption("🔻 your search, across the whole match — click a marker to jump there")
+        else:
+            st.altair_chart(chart, use_container_width=True)
+
+
 # --------------------------------------------------------------------------- #
 
 st.set_page_config(page_title="FilmFinder", page_icon="🎬", layout="centered")
@@ -140,6 +221,12 @@ if video_id:
 else:
     st.warning("No VIDEO_ID configured — set it in .env locally or in the "
                "Streamlit secrets dashboard.")
+
+# Match Pulse slot: reserved here (under the player), filled at the end of
+# the script once the search results exist. SHOW_TIMELINE is the kill switch.
+SHOW_PULSE = os.environ.get("SHOW_TIMELINE", "1").lower() in ("1", "true", "yes")
+pulse_slot = st.container() if SHOW_PULSE else None
+pulse_moments = []
 
 # ---- search bar + chips -------------------------------------------------------
 query = st.text_input(
@@ -186,6 +273,8 @@ else:
         if parsed.get("sanitized"):
             st.caption("🛡️ Parts of that query looked like instructions rather "
                        "than soccer — searched a cleaned version.")
+
+        pulse_moments = moments
 
         # Scout Note panel: reserve the slot now, fill it after the cards
         # render so the agent's latency never delays the results.
@@ -242,3 +331,11 @@ else:
                 with st.expander(f"📋 Scout Note{tag}", expanded=True):
                     for b in note["bullets"]:
                         st.markdown(f"- **{b['time']}** — {b['text']}")
+
+# Fill the Match Pulse slot last: a chart failure must never take down the
+# search experience — the strip just doesn't appear.
+if SHOW_PULSE:
+    try:
+        render_pulse(pulse_slot, pulse_moments)
+    except Exception:
+        pass

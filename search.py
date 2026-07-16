@@ -321,6 +321,26 @@ def find_moments(query: str, collection: str = DEFAULT_COLLECTION,
     return parsed, cluster_moments(hits, max_moments=max_moments)
 
 
+def timeline_points(collection: str = DEFAULT_COLLECTION):
+    """(t, action) for every indexed frame — feeds the Match Pulse strip.
+
+    One paged scroll (~4 pages for 3.1k points, payload-only), returned as
+    plain tuples so Streamlit's cache pickles them cheaply.
+    """
+    client = get_client()
+    out, offset = [], None
+    while True:
+        points, offset = client.scroll(collection_name=collection, limit=1000,
+                                       offset=offset,
+                                       with_payload=["t", "action"],
+                                       with_vectors=False)
+        out.extend((p.payload["t"], p.payload["action"]) for p in points)
+        if offset is None:
+            break
+    out.sort()
+    return out
+
+
 def find_similar(point_id: str, exclude_start: int, exclude_end: int,
                  collection: str = DEFAULT_COLLECTION, top_k: int = 25,
                  max_moments: int = 4):
