@@ -65,8 +65,9 @@ app before recording.
   grassroots budget. We built the retrieval engine, not a wrapper.
 - **"What's your accuracy?"** — Quote QA.md numbers, misses first: the
   counterattack query is an honest failure (per-frame captions can't see
-  transitions). 5/5 canonical queries at rank 1 on the dev slice;
-  _TODO(Thu): full-match numbers_.
+  transitions). Full match: 12/12 gold queries at rank 1 (MRR 1.00, hit@6
+  12/12) via the repeatable harness (`python qa_eval.py`); earlier manual
+  pass 9/10 with the counterattack miss documented.
 - **"Hallucinations?"** — The only runtime LLM free-text is the Scout Note,
   and it passes a code gate: cite a timestamp outside the retrieved set and
   the note is discarded. Captions carry confidence + prompt version for audit.
@@ -80,13 +81,12 @@ app before recording.
   The resume drill — kill the captioner mid-run, relaunch, zero duplicates —
   is in the repo history.
 
-## Thursday runbook (gated on tonight's captions)
+## Thursday runbook — status
 
-1. `wc -l captions_match01.jsonl` → expect 3138 (log: run_midnight.log)
-2. `python indexer.py --captions captions_match01.jsonl --collection filmfinder_match01` (top-up, idempotent)
-3. app.py: `COLLECTION = "filmfinder_match01"`, `THUMBS_DIR = .../thumbs/match01`
-4. Streamlit Cloud secrets (user): `LYZR_API_KEY`, `USE_LYZR_PARSER="1"`, `USE_LYZR_SCOUT="1"`
-5. Push → verify deployed app cold-start → full-match QA (10 queries) → QA.md + README numbers
-6. Commit completed captions_match01.jsonl + stats
-7. Record video per script → upload → drop links here and in README
-8. Portal: paste description, verify all fields, submit
+1. ~~Captions 3138~~ ✅  2. ~~Index top-up~~ ✅  3. ~~App swap~~ ✅
+4. ~~Streamlit secrets~~ ✅  5. ~~Deploy + QA.md + README numbers~~ ✅
+6. ~~Commit captions~~ ✅
+7. **Record video per script → upload → drop link here + README** ← YOU
+8. **Portal: paste description, verify all fields, submit** ← YOU
+
+Frozen build: `93fc82d`. Hard-refresh any old tab before demoing.
