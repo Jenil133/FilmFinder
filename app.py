@@ -280,13 +280,7 @@ if DEEPLINKS:
     except Exception:
         _q0, _t0 = "", 0
 
-# Load alive: with no deep link, judges arrive mid-goal with a search already
-# run — action on screen, markers on the strip, zero clicks required.
-if not _q0:
-    _q0 = "goal"
-if not _t0:
-    _t0 = 3734  # free-kick goal past the grey keeper (verified in QA.md)
-
+# Plain landing: no pre-seeded search. Deep links (?q=, ?t=) still pre-fill.
 st.session_state.setdefault("seek_t", _t0)
 st.session_state.setdefault("query_input", _q0)
 
