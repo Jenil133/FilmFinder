@@ -7,7 +7,7 @@
 - **Repo:** https://github.com/Jenil133/FilmFinder
 - **Live demo:** https://filmfinder-3w3t24wvvcf7xsbgj32jhx.streamlit.app
 - **Video:** _TODO(Thu): link_
-- **Track:** _TODO(Thu): confirm exact track name in portal_
+- **Track:** Athlete Performance & Coaching
 
 ## Description (paste-ready, ~250 words)
 
